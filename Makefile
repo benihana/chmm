@@ -1,15 +1,15 @@
-INC=-I$$CUDA_SDK_PATH/common/inc
+# INC=-I$$CUDA_SDK_PATH/common/inc
 
 all: cuhmm hmm fhmm
 
 cuhmm: hmm.cu
-	nvcc $(INC) hmm.cu -o cuhmm
+	nvcc hmm.cu -o cuhmm
 
 hmm: hmm.c
-	gcc -Wall -g -lm hmm.c -o hmm
+	gcc -Wall -pg -lm hmm.c -o hmm
 
 fhmm: fhmm.c
-	gcc -Wall -g -lm fhmm.c -o fhmm
+	gcc -Wall -pg -lm fhmm.c -o fhmm
 
 test: hmm fhmm
 	./hmm -p1 -c config.0

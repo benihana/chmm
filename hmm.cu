@@ -33,7 +33,7 @@
 #include <unistd.h>
 
 #include <cuda.h>
-#include <cutil.h>
+
 
 #define handle_error(msg) \
   do { perror(msg); exit(EXIT_FAILURE); } while (0)
@@ -230,14 +230,15 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
 
+  
   /* initial cuda device memory */
   c = sizeof(float) * nstates * nstates;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&transd, c));
-  CUDA_SAFE_CALL(cudaMemcpy(transd, trans, c, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&transd, c);
+  cudaMemcpy(transd, trans, c, cudaMemcpyHostToDevice);
   
   c = sizeof(float) * nstates * nobvs;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&obvsd, c));
-  CUDA_SAFE_CALL(cudaMemcpy(obvsd, obvs, c, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&obvsd, c);
+  cudaMemcpy(obvsd, obvs, c, cudaMemcpyHostToDevice);
 
   if (mode == 3) {
     /* estimating parameters using Baum-Welch algorithm */
@@ -330,7 +331,7 @@ float sumf(float *array, int n, int indevice)
     } else {
       float gout[n];
       size = sizeof(float) * n;
-      CUDA_SAFE_CALL(cudaMemcpy(gout, array, size, cudaMemcpyDeviceToHost));
+      cudaMemcpy(gout, array, size, cudaMemcpyDeviceToHost);
       for (i = 0; i < n; i++) {
         sum += gout[i];
       }
@@ -346,8 +347,8 @@ float sumf(float *array, int n, int indevice)
     if (indevice == 0) {
 
       size = sizeof(float) * num_blocks * NUM_THREADS;
-      CUDA_SAFE_CALL(cudaMalloc((void**) &gin, size));
-      CUDA_SAFE_CALL(cudaMemcpy(gin, array, size, cudaMemcpyHostToDevice));
+      cudaMalloc((void**) &gin, size);
+      cudaMemcpy(gin, array, size, cudaMemcpyHostToDevice);
     
       reduce2<<<dimGrid, dimBlock>>>(gin, gin);
 
@@ -356,7 +357,7 @@ float sumf(float *array, int n, int indevice)
       if (remains > 0)
         sum += sumf(array + num_blocks * NUM_THREADS, remains, 0);
 
-      CUDA_SAFE_CALL(cudaFree(gin));
+      cudaFree(gin);
 
     } else {
       reduce2<<<dimGrid, dimBlock>>>(gin, gin);
@@ -412,7 +413,7 @@ float logsumf(float *array, int n, int indevice)
     } else {
       float gout[n];
       size = sizeof(float) * n;
-      CUDA_SAFE_CALL(cudaMemcpy(gout, array, size, cudaMemcpyDeviceToHost));
+      cudaMemcpy(gout, array, size, cudaMemcpyDeviceToHost);
       for (i = 0; i < n; i++) {
         sum = logadd(sum, gout[i]);
       }
@@ -428,8 +429,8 @@ float logsumf(float *array, int n, int indevice)
     if (indevice == 0) {
 
       size = sizeof(float) * num_blocks * NUM_THREADS;
-      CUDA_SAFE_CALL(cudaMalloc((void**) &gin, size));
-      CUDA_SAFE_CALL(cudaMemcpy(gin, array, size, cudaMemcpyHostToDevice));
+      cudaMalloc((void**) &gin, size);
+      cudaMemcpy(gin, array, size, cudaMemcpyHostToDevice);
     
       logreduce2<<<dimGrid, dimBlock>>>(gin, gin);
 
@@ -438,7 +439,7 @@ float logsumf(float *array, int n, int indevice)
       if (remains > 0)
         sum = logadd(sum, logsumf(array + num_blocks * NUM_THREADS, remains, 0));
 
-      CUDA_SAFE_CALL(cudaFree(gin));
+      cudaFree(gin);
 
     } else {
       logreduce2<<<dimGrid, dimBlock>>>(gin, gin);
@@ -450,7 +451,6 @@ float logsumf(float *array, int n, int indevice)
   }
   return sum;
 }
-
 
 /* kernel function to initialized xi counts */
 __global__ void
@@ -480,11 +480,11 @@ void init_count() {
   dim3 xiGrid(nstates / xiBlock.x, nstates / xiBlock.y);
 
   size = sizeof(float) * nstates * nstates;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&xid, size));
+  cudaMalloc((void**)&xid, size);
   initxid<<<xiGrid, xiBlock>>>(xid, nstates);
   
   size = sizeof(float) * nstates * nobvs;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&gmmd, size));
+  cudaMalloc((void**)&gmmd, size);
   /* this partition implies if (N = nstate * nobvs) > NUM_THREADS, N
      should be a multiple of NUM_THREADS, e.g. an invalid case ma be:
      NUM_THREADS = 256, nstates = 128 * 3, and nobvs = 3. */
@@ -495,8 +495,8 @@ void init_count() {
   for (i = 0; i < nstates; i++)
     pi[i] = - INFINITY;
   size = sizeof(float) * nstates;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&pid, size));
-  CUDA_SAFE_CALL(cudaMemcpy(pid, pi, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&pid, size);
+  cudaMemcpy(pid, pi, size, cudaMemcpyHostToDevice);
 }
 
 /* add up two logarithm while avoiding overflow */
@@ -576,23 +576,23 @@ void stepfwd(float *alpha, size_t n)
   dim3 dimGrid(nstates / dimBlock.x, nseq / dimBlock.y);
 
   size = sizeof(int) * nseq;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Od, size));
-  CUDA_SAFE_CALL(cudaMemcpy(Od, data + n * nseq, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&Od, size);
+  cudaMemcpy(Od, data + n * nseq, size, cudaMemcpyHostToDevice);
 
   size = sizeof(float) * nstates * nseq;
 
-  CUDA_SAFE_CALL(cudaMalloc((void**)&A, size));
-  CUDA_SAFE_CALL(cudaMemcpy(A, alpha + (n - 1) * nseq * nstates, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&A, size);
+  cudaMemcpy(A, alpha + (n - 1) * nseq * nstates, size, cudaMemcpyHostToDevice);
 
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Ad, size));
+  cudaMalloc((void**)&Ad, size);
 
   stepfwdd<<<dimGrid, dimBlock>>>(A, transd, Od, obvsd, nstates, nobvs, Ad);
 
-  CUDA_SAFE_CALL(cudaMemcpy(alpha + n * nseq * nstates, Ad, size, cudaMemcpyDeviceToHost));
+  cudaMemcpy(alpha + n * nseq * nstates, Ad, size, cudaMemcpyDeviceToHost);
 
-  CUDA_SAFE_CALL(cudaFree(Od));
-  CUDA_SAFE_CALL(cudaFree(A));
-  CUDA_SAFE_CALL(cudaFree(Ad));
+  cudaFree(Od);
+  cudaFree(A);
+  cudaFree(Ad);
 }
 
 /* init first slice of forwad probability matrix. */
@@ -632,13 +632,13 @@ void initbck(float *beta)
   dim3 dimGrid(nstates / dimBlock.x, nseq / dimBlock.y);
 
   size = sizeof(float) * nstates * nseq;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Bd, size));
+  cudaMalloc((void**)&Bd, size);
 
   initbckd<<<dimGrid, dimBlock>>>(Bd, nstates);
 
-  CUDA_SAFE_CALL(cudaMemcpy(beta, Bd, size, cudaMemcpyDeviceToHost));
+  cudaMemcpy(beta, Bd, size, cudaMemcpyDeviceToHost);
 
-  CUDA_SAFE_CALL(cudaFree(Bd));
+  cudaFree(Bd);
 }
 
 /* kernel function for updating xi counts */
@@ -769,40 +769,40 @@ void stepbck(float *alpha, float *pre, size_t n, float* loglik, float *beta)
   dim3 sGrid(nstates / sBlock.x, nseq / sBlock.y);
 
   size = sizeof(int) * nseq;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Od, size));
-  CUDA_SAFE_CALL(cudaMemcpy(Od, data + (n + 1) * nseq, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&Od, size);
+  cudaMemcpy(Od, data + (n + 1) * nseq, size, cudaMemcpyHostToDevice);
 
-  CUDA_SAFE_CALL(cudaMalloc((void**)&loglikd, size));
-  CUDA_SAFE_CALL(cudaMemcpy(loglikd, loglik, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&loglikd, size);
+  cudaMemcpy(loglikd, loglik, size, cudaMemcpyHostToDevice);
 
   size = sizeof(float) * nstates * nseq;
 
-  CUDA_SAFE_CALL(cudaMalloc((void**)&pred, size));
-  CUDA_SAFE_CALL(cudaMemcpy(pred, pre, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&pred, size);
+  cudaMemcpy(pred, pre, size, cudaMemcpyHostToDevice);
 
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Ad, size));
-  CUDA_SAFE_CALL(cudaMemcpy(Ad, alpha + n * nseq * nstates, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&Ad, size);
+  cudaMemcpy(Ad, alpha + n * nseq * nstates, size, cudaMemcpyHostToDevice);
 
   /* update counts */
   updatexid<<<xiGrid, xiBlock>>>(Ad, pred, transd, Od, obvsd,
                                nstates, nobvs, nseq, loglikd, xid);
 
-  CUDA_SAFE_CALL(cudaMemcpy(Ad, alpha + (n + 1) * nseq * nstates, size, cudaMemcpyHostToDevice));
+  cudaMemcpy(Ad, alpha + (n + 1) * nseq * nstates, size, cudaMemcpyHostToDevice);
   updategmmd<<<gmmGrid, gmmBlock>>>(Ad, pred, Od, nstates,
                                     nobvs, nseq, loglikd, gmmd);
 
 
   /* compute one step beta probabilities */
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Bd, size));
+  cudaMalloc((void**)&Bd, size);
   stepbckd<<<sGrid, sBlock>>>(pred, transd, Od, obvsd, nstates, nobvs, Bd);
 
-  CUDA_SAFE_CALL(cudaMemcpy(beta, Bd, size, cudaMemcpyDeviceToHost));
+  cudaMemcpy(beta, Bd, size, cudaMemcpyDeviceToHost);
 
-  CUDA_SAFE_CALL(cudaFree(Ad));
-  CUDA_SAFE_CALL(cudaFree(Od));
-  CUDA_SAFE_CALL(cudaFree(Bd));
-  CUDA_SAFE_CALL(cudaFree(pred));
-  CUDA_SAFE_CALL(cudaFree(loglikd));
+  cudaFree(Ad);
+  cudaFree(Od);
+  cudaFree(Bd);
+  cudaFree(pred);
+  cudaFree(loglikd);
 }
 
 void last_update(float *alpha, float *beta, float *loglik)
@@ -818,25 +818,25 @@ void last_update(float *alpha, float *beta, float *loglik)
   dim3 piGrid(nstates / piBlock.x);
 
   size = sizeof(int) * nseq;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Od, size));
-  CUDA_SAFE_CALL(cudaMemcpy(Od, data, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&Od, size);
+  cudaMemcpy(Od, data, size, cudaMemcpyHostToDevice);
 
-  CUDA_SAFE_CALL(cudaMalloc((void**)&loglikd, size));
-  CUDA_SAFE_CALL(cudaMemcpy(loglikd, loglik, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&loglikd, size);
+  cudaMemcpy(loglikd, loglik, size, cudaMemcpyHostToDevice);
 
   size = sizeof(float) * nstates * nseq;
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Bd, size));
-  CUDA_SAFE_CALL(cudaMalloc((void**)&Ad, size));
-  CUDA_SAFE_CALL(cudaMemcpy(Bd, beta, size, cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMemcpy(Ad, alpha, size, cudaMemcpyHostToDevice));
+  cudaMalloc((void**)&Bd, size);
+  cudaMalloc((void**)&Ad, size);
+  cudaMemcpy(Bd, beta, size, cudaMemcpyHostToDevice);
+  cudaMemcpy(Ad, alpha, size, cudaMemcpyHostToDevice);
 
   updategmmd<<<gmmGrid, gmmBlock>>>(Ad, Bd, Od, nstates, nobvs, nseq, loglikd, gmmd);
   updatepid<<<piGrid, piBlock>>>(Ad, Bd, Od, nstates, nseq, loglikd, pid);
 
-  CUDA_SAFE_CALL(cudaFree(Ad));
-  CUDA_SAFE_CALL(cudaFree(Bd));
-  CUDA_SAFE_CALL(cudaFree(Od));
-  CUDA_SAFE_CALL(cudaFree(loglikd));
+  cudaFree(Ad);
+  cudaFree(Bd);
+  cudaFree(Od);
+  cudaFree(loglikd);
 }
 
 /* forwad backward algorithm: running on all sequences in parallel */
@@ -928,7 +928,7 @@ float forward_backward(int backward)
   return p;
 }
 
-/* update indevice prob using indevice counts */
+/* update model parameters using estimated counts */
 void update_prob()
 {
   float pisum;
@@ -941,13 +941,13 @@ void update_prob()
 
   size_t i, j;
 
-  CUDA_SAFE_CALL(cudaMemcpy(xi, xid, nstates * nstates * sizeof(float), cudaMemcpyDeviceToHost));
-  CUDA_SAFE_CALL(cudaMemcpy(gmm, gmmd, nobvs * nstates * sizeof(float), cudaMemcpyDeviceToHost));
-  CUDA_SAFE_CALL(cudaMemcpy(pi, pid, nstates * sizeof(float), cudaMemcpyDeviceToHost));
+  cudaMemcpy(xi, xid, nstates * nstates * sizeof(float), cudaMemcpyDeviceToHost);
+  cudaMemcpy(gmm, gmmd, nobvs * nstates * sizeof(float), cudaMemcpyDeviceToHost);
+  cudaMemcpy(pi, pid, nstates * sizeof(float), cudaMemcpyDeviceToHost);
 
-  if (gmmd) CUDA_SAFE_CALL(cudaFree(gmmd));
-  if (xid) CUDA_SAFE_CALL(cudaFree(xid));
-  if (pid) CUDA_SAFE_CALL(cudaFree(pid));
+  if (gmmd) cudaFree(gmmd);
+  if (xid) cudaFree(xid);
+  if (pid) cudaFree(pid);
 
   pisum = logsumf(pi, nstates, IN_HOST);
   for (i = 0; i < nstates; i++) {
@@ -968,8 +968,9 @@ void update_prob()
     }
   }
 
-  CUDA_SAFE_CALL(cudaMemcpy(transd, trans, nstates * nstates * sizeof(float), cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMemcpy(obvsd, obvs, nobvs * nstates * sizeof(float), cudaMemcpyHostToDevice));
+  /* update indevice parameters */
+  cudaMemcpy(transd, trans, nstates * nstates * sizeof(float), cudaMemcpyHostToDevice);
+  cudaMemcpy(obvsd, obvs, nobvs * nstates * sizeof(float), cudaMemcpyHostToDevice);
 }
 
 void usage() {
@@ -986,8 +987,9 @@ void usage() {
 
 /* free all memory */
 void freeall() {
-  if (transd) CUDA_SAFE_CALL(cudaFree(transd));
-  if (obvsd) CUDA_SAFE_CALL(cudaFree(obvsd));
+
+  if (transd) cudaFree(transd);
+  if (obvsd) cudaFree(obvsd);
 
   if (trans) free(trans);
   if (obvs) free(obvs);
